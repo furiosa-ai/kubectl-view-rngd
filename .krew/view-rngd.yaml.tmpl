@@ -1,0 +1,60 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: view-rngd
+spec:
+  version: ${VERSION}
+  homepage: ${HOMEPAGE}
+  shortDescription: Visualize furiosa.ai/rngd allocation across nodes.
+  description: |
+    kubectl view-rngd prints a bordered table of each node's
+    furiosa.ai/rngd capacity, the amount currently allocated by
+    scheduled Pending/Running pods, and the pods consuming the
+    resource. Designed for operators of Furiosa NPU clusters.
+
+    Default view hides nodes that do not advertise furiosa.ai/rngd
+    capacity. Pass --include-empty to show every node.
+  caveats: |
+    Requires "get" permission on cluster-scoped nodes and "list"
+    permission on pods in every namespace.
+  platforms:
+    - selector:
+        matchLabels:
+          os: linux
+          arch: amd64
+      uri: ${URI_LINUX_AMD64}
+      sha256: ${SHA_LINUX_AMD64}
+      bin: kubectl-view-rngd
+      files:
+        - from: "*"
+          to: "."
+    - selector:
+        matchLabels:
+          os: linux
+          arch: arm64
+      uri: ${URI_LINUX_ARM64}
+      sha256: ${SHA_LINUX_ARM64}
+      bin: kubectl-view-rngd
+      files:
+        - from: "*"
+          to: "."
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: amd64
+      uri: ${URI_DARWIN_AMD64}
+      sha256: ${SHA_DARWIN_AMD64}
+      bin: kubectl-view-rngd
+      files:
+        - from: "*"
+          to: "."
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: arm64
+      uri: ${URI_DARWIN_ARM64}
+      sha256: ${SHA_DARWIN_ARM64}
+      bin: kubectl-view-rngd
+      files:
+        - from: "*"
+          to: "."

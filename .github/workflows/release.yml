@@ -1,0 +1,123 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  BIN_NAME: kubectl-view-rngd
+  PKG_PREFIX: kubectl-view-rngd
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_os: linux
+            archive_arch: amd64
+            use_cross: true
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            archive_os: linux
+            archive_arch: arm64
+            use_cross: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive_os: darwin
+            archive_arch: amd64
+            use_cross: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive_os: darwin
+            archive_arch: arm64
+            use_cross: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install cross (linux targets only)
+        if: matrix.use_cross == true
+        run: cargo install cross --locked
+      - name: Build
+        env:
+          TARGET: ${{ matrix.target }}
+          USE_CROSS: ${{ matrix.use_cross }}
+        run: |
+          if [ "$USE_CROSS" = "true" ]; then
+            cross build --release --target "$TARGET"
+          else
+            cargo build --release --target "$TARGET"
+          fi
+      - name: Package tarball
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCHIVE_OS: ${{ matrix.archive_os }}
+          ARCHIVE_ARCH: ${{ matrix.archive_arch }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist/staging
+          cp "target/$TARGET/release/$BIN_NAME" dist/staging/
+          cp LICENSE README.md dist/staging/
+          archive="${PKG_PREFIX}_${TAG}_${ARCHIVE_OS}_${ARCHIVE_ARCH}.tar.gz"
+          tar -C dist/staging -czf "dist/$archive" .
+          rm -rf dist/staging
+          (cd dist && shasum -a 256 "$archive" > "$archive.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive_os }}-${{ matrix.archive_arch }}
+          path: dist/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Render krew manifest
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          cd dist
+          cat *.sha256 > SHA256SUMS.txt
+          declare -A sha
+          while read -r hash file; do sha["$file"]="$hash"; done < SHA256SUMS.txt
+          base="${SERVER_URL}/${REPO}/releases/download/${TAG}"
+          export VERSION="$TAG"
+          export HOMEPAGE="${SERVER_URL}/${REPO}"
+          for arch_pair in "linux amd64" "linux arm64" "darwin amd64" "darwin arm64"; do
+            read -r os arch <<<"$arch_pair"
+            file="${PKG_PREFIX:-kubectl-view-rngd}_${TAG}_${os}_${arch}.tar.gz"
+            var_uri="URI_$(echo "$os" | tr '[:lower:]' '[:upper:]')_$(echo "$arch" | tr '[:lower:]' '[:upper:]')"
+            var_sha="SHA_$(echo "$os" | tr '[:lower:]' '[:upper:]')_$(echo "$arch" | tr '[:lower:]' '[:upper:]')"
+            export "$var_uri=$base/$file"
+            export "$var_sha=${sha[$file]}"
+          done
+          envsubst < ../.krew/view-rngd.yaml.tmpl > view-rngd.yaml
+          cat view-rngd.yaml
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            dist/*.tar.gz dist/view-rngd.yaml
