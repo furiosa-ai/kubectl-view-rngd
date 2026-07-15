@@ -1,5 +1,5 @@
 use k8s_openapi::api::core::v1::{Node, Pod};
-use kubectl_view_rngd::aggregate::{NodeRow, PodEntry, aggregate};
+use kubectl_view_rngd::aggregate::{NodeRow, PodEntry, RowSource, aggregate};
 use kubectl_view_rngd::render::render;
 use serde_json::{Value, json};
 
@@ -73,6 +73,7 @@ fn happy_path_sorts_nodes_and_sums_pods() {
     assert_eq!(rows[1].node_name, "node2");
 
     let n1 = row(&rows, "node1");
+    assert_eq!(n1.source, Some(RowSource::DevicePlugin));
     assert_eq!(n1.capacity, 8);
     assert_eq!(n1.allocated, 4);
     assert_eq!(
@@ -97,6 +98,7 @@ fn happy_path_sorts_nodes_and_sums_pods() {
     );
 
     let n2 = row(&rows, "node2");
+    assert_eq!(n2.source, Some(RowSource::DevicePlugin));
     assert_eq!(n2.capacity, 8);
     assert_eq!(n2.allocated, 8);
     assert_eq!(
@@ -161,6 +163,7 @@ fn include_empty_shows_nodes_without_rngd() {
     let rows = aggregate(&nodes, &[], true).unwrap();
     assert_eq!(rows.len(), 2);
     let cpu = row(&rows, "cpu-only");
+    assert_eq!(cpu.source, None);
     assert_eq!(cpu.capacity, 0);
     assert_eq!(cpu.allocated, 0);
     assert!(cpu.pods.is_empty());
@@ -213,9 +216,11 @@ fn render_snapshot_matches_expected_layout() {
     // Table must be bordered Unicode and contain every row we expect.
     for needle in [
         "│ Node",
+        "│ Source",
         "│ Usage",
         "│ Pods",
         "node1",
+        "device-plugin",
         "4 / 8",
         "ns1/pod-foo (1)",
         "ns2/pod-bar (2)",

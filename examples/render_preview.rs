@@ -1,10 +1,11 @@
-use kubectl_view_rngd::aggregate::{NodeRow, PodEntry};
+use kubectl_view_rngd::aggregate::{NodeRow, PodEntry, RowSource};
 use kubectl_view_rngd::render::render;
 
 fn main() {
     let rows = vec![
         NodeRow {
             node_name: "node1".into(),
+            source: Some(RowSource::DevicePlugin),
             capacity: 8,
             allocated: 8,
             pods: vec![
@@ -22,12 +23,14 @@ fn main() {
         },
         NodeRow {
             node_name: "node2".into(),
+            source: Some(RowSource::DevicePlugin),
             capacity: 4,
             allocated: 0,
             pods: vec![],
         },
         NodeRow {
             node_name: "node3".into(),
+            source: Some(RowSource::Dra),
             capacity: 8,
             allocated: 2,
             pods: vec![PodEntry {
@@ -38,6 +41,7 @@ fn main() {
         },
         NodeRow {
             node_name: "node4".into(),
+            source: Some(RowSource::Dra),
             capacity: 8,
             allocated: 8,
             pods: vec![

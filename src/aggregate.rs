@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use anyhow::{Result, anyhow};
 use k8s_openapi::api::core::v1::{Node, Pod};
@@ -13,8 +14,24 @@ pub struct PodEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowSource {
+    DevicePlugin,
+    Dra,
+}
+
+impl fmt::Display for RowSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DevicePlugin => f.write_str("device-plugin"),
+            Self::Dra => f.write_str("dra"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeRow {
     pub node_name: String,
+    pub source: Option<RowSource>,
     pub capacity: i64,
     pub allocated: i64,
     pub pods: Vec<PodEntry>,
@@ -87,8 +104,14 @@ pub fn aggregate(nodes: &[Node], pods: &[Pod], include_empty: bool) -> Result<Ve
             let mut pods = node_pods.remove(&name).unwrap_or_default();
             pods.sort_by(|a, b| (&a.namespace, &a.name).cmp(&(&b.namespace, &b.name)));
             let allocated: i64 = pods.iter().map(|p| p.count).sum();
+            let source = if cap > 0 || allocated > 0 {
+                Some(RowSource::DevicePlugin)
+            } else {
+                None
+            };
             NodeRow {
                 node_name: name,
+                source,
                 capacity: cap,
                 allocated,
                 pods,

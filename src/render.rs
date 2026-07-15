@@ -15,9 +15,14 @@ pub fn render(rows: &[NodeRow]) -> String {
         .set_style(TableComponent::TopBorderIntersections, '┬')
         .set_style(TableComponent::BottomBorderIntersections, '┴')
         .set_content_arrangement(ContentArrangement::Disabled)
-        .set_header(["Node", "Usage", "Pods"]);
+        .set_header(["Node", "Source", "Usage", "Pods"]);
 
     for row in rows {
+        let source = row
+            .source
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "-".to_string());
         let pods_cell = if row.pods.is_empty() {
             "-".to_string()
         } else {
@@ -29,6 +34,7 @@ pub fn render(rows: &[NodeRow]) -> String {
         };
         table.add_row([
             row.node_name.clone(),
+            source,
             format!("{} / {}", row.allocated, row.capacity),
             pods_cell,
         ]);
