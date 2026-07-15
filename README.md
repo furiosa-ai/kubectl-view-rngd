@@ -2,27 +2,29 @@
 
 A kubectl plugin that visualizes allocation of the `furiosa.ai/rngd` extended
 resource across the nodes of a Kubernetes cluster.
+Devices published through DRA by the `npu.furiosa.ai` driver (ResourceSlices
+and ResourceClaims) are visualized as well.
 
 ## Usage
 
 ```
 $ kubectl view-rngd
-┌───────┬───────┬─────────────────┐
-│ Node  │ Usage │ Pods            │
-╞═══════╪═══════╪═════════════════╡
-│ node1 │ 8 / 8 │ ns1/pod-foo (4) │
-│       │       │ ns1/pod-bar (4) │
-├───────┼───────┼─────────────────┤
-│ node2 │ 0 / 4 │ -               │
-├───────┼───────┼─────────────────┤
-│ node3 │ 2 / 8 │ ns1/pod-baz (2) │
-├───────┼───────┼─────────────────┤
-│ node4 │ 8 / 8 │ ns2/pod-a (4)   │
-│       │       │ ns2/pod-b (1)   │
-│       │       │ ns2/pod-c (1)   │
-│       │       │ ns2/pod-d (1)   │
-│       │       │ ns2/pod-e (1)   │
-└───────┴───────┴─────────────────┘
+┌───────┬───────────────┬───────┬─────────────────┐
+│ Node  │ Source        │ Usage │ Pods            │
+╞═══════╪═══════════════╪═══════╪═════════════════╡
+│ node1 │ device-plugin │ 8 / 8 │ ns1/pod-foo (4) │
+│       │               │       │ ns1/pod-bar (4) │
+├───────┼───────────────┼───────┼─────────────────┤
+│ node2 │ device-plugin │ 0 / 4 │ -               │
+├───────┼───────────────┼───────┼─────────────────┤
+│ node3 │ dra           │ 2 / 8 │ ns1/pod-baz (2) │
+├───────┼───────────────┼───────┼─────────────────┤
+│ node4 │ dra           │ 8 / 8 │ ns2/pod-a (4)   │
+│       │               │       │ ns2/pod-b (1)   │
+│       │               │       │ ns2/pod-c (1)   │
+│       │               │       │ ns2/pod-d (1)   │
+│       │               │       │ ns2/pod-e (1)   │
+└───────┴───────────────┴───────┴─────────────────┘
 ```
 
 ### Required permissions
@@ -31,6 +33,8 @@ The plugin needs read access to:
 
 - `nodes` (cluster-scope, `get`/`list`)
 - `pods` (all namespaces, `list`)
+- `resourceslices` (cluster-scope, `get`/`list`; needed when DRA mode engages)
+- `resourceclaims` (all namespaces, `list`; needed when DRA mode engages)
 
 ### Flags
 
@@ -39,7 +43,27 @@ The plugin needs read access to:
 | `--kubeconfig`    | inferred | Path to kubeconfig file. Falls back to `$KUBECONFIG` / `~/.kube/config`.     |
 | `--context`       | current  | Kube context to use.                                                         |
 | `--include-empty` | off      | Also list nodes without `furiosa.ai/rngd` capacity (shown as `0 / 0` / `-`). |
+| `--source`        | `auto`   | Data source: per-node auto-detection, or force `device-plugin` / `dra`.      |
+| `--driver`        | `npu.furiosa.ai` | DRA driver whose devices are shown.                                  |
 | `-v`, `--verbose` | off      | Emit debug logging to stderr.                                                |
+
+### DRA mode
+
+By default (`--source auto`) the plugin decides the data source per node, so
+mixed clusters that are migrating from the device plugin to the DRA driver
+show every node in a single table:
+
+- Nodes that have current-generation ResourceSlices for the selected
+  `--driver` are shown from DRA objects (`Source: dra`).
+- All remaining nodes use the device-plugin view (`Source: device-plugin`).
+- Pools that are not node-local are shown once as `(all nodes)` /
+  `(multi-node)` rows.
+- If the DRA API is unavailable or forbidden, or no slice matches the driver,
+  auto mode silently falls back to the pure device-plugin view.
+- If a node exposes both DRA slices and `furiosa.ai/rngd` capacity, the DRA
+  view wins for that node.
+
+Use `--source dra` or `--source device-plugin` to force one specific view.
 
 ## Installation
 
