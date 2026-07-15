@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod aggregate_dra;
 pub mod cli;
 pub mod collect;
 pub mod kube_client;
