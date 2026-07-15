@@ -2,6 +2,7 @@ pub mod aggregate;
 pub mod aggregate_dra;
 pub mod cli;
 pub mod collect;
+pub mod collect_dra;
 pub mod kube_client;
 pub mod render;
 
