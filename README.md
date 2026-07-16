@@ -45,6 +45,7 @@ The plugin needs read access to:
 | `--include-empty` | off      | Also list nodes without `furiosa.ai/rngd` capacity (shown as `0 / 0` / `-`). |
 | `--source`        | `auto`   | Data source: per-node auto-detection, or force `device-plugin` / `dra`.      |
 | `--driver`        | `npu.furiosa.ai` | DRA driver whose devices are shown.                                  |
+| `--devices`       | off      | Show allocated DRA device names in the Pods column when available.            |
 | `-v`, `--verbose` | off      | Emit debug logging to stderr.                                                |
 
 ### DRA mode
@@ -58,6 +59,8 @@ show every node in a single table:
 - All remaining nodes use the device-plugin view (`Source: device-plugin`).
 - Pools that are not node-local are shown once as `(all nodes)` /
   `(multi-node)` rows.
+- `--devices` can show device names in the Pods column, but only for
+  DRA-sourced rows; device-plugin rows always show counts.
 - If the DRA API is unavailable or forbidden, or no slice matches the driver,
   auto mode silently falls back to the pure device-plugin view.
 - If a node exposes both DRA slices and `furiosa.ai/rngd` capacity, the DRA
