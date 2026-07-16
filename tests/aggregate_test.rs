@@ -82,17 +82,20 @@ fn happy_path_sorts_nodes_and_sums_pods() {
             PodEntry {
                 namespace: "ns1".into(),
                 name: "pod-foo".into(),
-                count: 1
+                count: 1,
+                devices: vec![]
             },
             PodEntry {
                 namespace: "ns2".into(),
                 name: "pod-bar".into(),
-                count: 2
+                count: 2,
+                devices: vec![]
             },
             PodEntry {
                 namespace: "ns2".into(),
                 name: "pod-foo".into(),
-                count: 1
+                count: 1,
+                devices: vec![]
             },
         ]
     );
@@ -106,7 +109,8 @@ fn happy_path_sorts_nodes_and_sums_pods() {
         vec![PodEntry {
             namespace: "ns1".into(),
             name: "pod-zzz".into(),
-            count: 8
+            count: 8,
+            devices: vec![]
         }]
     );
 }
@@ -173,7 +177,7 @@ fn include_empty_shows_nodes_without_rngd() {
 fn node_with_rngd_but_no_pods_renders_dash() {
     let nodes = vec![make_node("idle", Some("8"))];
     let rows = aggregate(&nodes, &[], false).unwrap();
-    let out = render(&rows);
+    let out = render(&rows, false);
     assert!(out.contains("idle"), "output missing node name:\n{out}");
     assert!(out.contains("0 / 8"), "output missing ratio:\n{out}");
     assert!(
@@ -186,7 +190,7 @@ fn node_with_rngd_but_no_pods_renders_dash() {
 fn empty_cluster_renders_header_only() {
     let rows = aggregate(&[], &[], false).unwrap();
     assert!(rows.is_empty());
-    let out = render(&rows);
+    let out = render(&rows, false);
     assert!(out.contains("Node") && out.contains("Pods"));
 }
 
@@ -211,7 +215,7 @@ fn render_snapshot_matches_expected_layout() {
         make_pod("ns1", "pod-zzz", Some("node2"), "Running", &[Some("8")]),
     ];
     let rows = aggregate(&nodes, &pods, false).unwrap();
-    let out = render(&rows);
+    let out = render(&rows, false);
 
     // Table must be bordered Unicode and contain every row we expect.
     for needle in [
@@ -241,4 +245,47 @@ fn render_snapshot_matches_expected_layout() {
         node1_line_count, 1,
         "node name should appear exactly once per node group:\n{out}"
     );
+}
+
+#[test]
+fn render_with_show_devices_uses_names_for_dra_rows_only() {
+    let rows = vec![
+        NodeRow {
+            node_name: "node-dp".into(),
+            source: Some(RowSource::DevicePlugin),
+            capacity: 4,
+            allocated: 2,
+            pods: vec![PodEntry {
+                namespace: "ns1".into(),
+                name: "pod-dp".into(),
+                count: 2,
+                devices: vec![],
+            }],
+        },
+        NodeRow {
+            node_name: "node-dra".into(),
+            source: Some(RowSource::Dra),
+            capacity: 4,
+            allocated: 2,
+            pods: vec![PodEntry {
+                namespace: "ns2".into(),
+                name: "pod-dra".into(),
+                count: 2,
+                devices: vec!["dev0".into(), "dev1".into()],
+            }],
+        },
+    ];
+    let out = render(&rows, true);
+
+    for needle in [
+        "node-dp",
+        "ns1/pod-dp (2)",
+        "node-dra",
+        "ns2/pod-dra (dev0,dev1)",
+    ] {
+        assert!(
+            out.contains(needle),
+            "missing {needle:?} in rendered table:\n{out}"
+        );
+    }
 }

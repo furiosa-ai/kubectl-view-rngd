@@ -11,6 +11,7 @@ pub struct PodEntry {
     pub namespace: String,
     pub name: String,
     pub count: i64,
+    pub devices: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +95,7 @@ pub fn aggregate(nodes: &[Node], pods: &[Pod], include_empty: bool) -> Result<Ve
                 namespace: ns,
                 name,
                 count,
+                devices: Vec::new(),
             });
     }
 

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use anyhow::{Result, anyhow};
 use k8s_openapi::api::{
@@ -17,6 +17,7 @@ struct NodeAccum {
     capacity: i64,
     allocated_devices: HashSet<(String, String)>,
     pod_counts: HashMap<(String, String), i64>,
+    pod_devices: HashMap<(String, String), BTreeSet<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +70,7 @@ pub fn aggregate_dra(
         let namespace = claim.metadata.namespace.clone().unwrap_or_default();
         let reserved_for = status.reserved_for.as_deref().unwrap_or(&[]);
         let mut claim_counts: HashMap<String, i64> = HashMap::new();
+        let mut claim_devices: HashMap<String, BTreeSet<String>> = HashMap::new();
 
         for result in results {
             if result.admin_access == Some(true) || result.driver != driver {
@@ -89,21 +91,30 @@ pub fn aggregate_dra(
             node.allocated_devices
                 .insert((result.pool.clone(), result.device.clone()));
             *claim_counts.entry(pool.node_name.clone()).or_insert(0) += 1;
+            claim_devices
+                .entry(pool.node_name.clone())
+                .or_default()
+                .insert(result.device.clone());
         }
 
         for (node_name, count) in claim_counts {
             let Some(node) = node_rows.get_mut(&node_name) else {
                 continue;
             };
+            let devices = claim_devices.remove(&node_name).unwrap_or_default();
             for consumer in reserved_for {
                 if consumer.resource != "pods" {
                     continue;
                 }
                 let key = (namespace.clone(), consumer.name.clone());
-                let entry = node.pod_counts.entry(key).or_insert(0);
+                let entry = node.pod_counts.entry(key.clone()).or_insert(0);
                 *entry = entry
                     .checked_add(count)
                     .ok_or_else(|| anyhow!("DRA pod count overflow on node"))?;
+                node.pod_devices
+                    .entry(key)
+                    .or_default()
+                    .extend(devices.iter().cloned());
             }
         }
     }
@@ -112,19 +123,28 @@ pub fn aggregate_dra(
         .into_iter()
         .filter(|(_, node)| include_empty || node.capacity > 0)
         .map(|(node_name, node)| {
-            let mut pods: Vec<PodEntry> = node
-                .pod_counts
+            let NodeAccum {
+                capacity,
+                allocated_devices,
+                pod_counts,
+                pod_devices,
+            } = node;
+            let mut pods: Vec<PodEntry> = pod_counts
                 .into_iter()
                 .map(|((namespace, name), count)| PodEntry {
+                    devices: pod_devices
+                        .get(&(namespace.clone(), name.clone()))
+                        .map(|devices| devices.iter().cloned().collect())
+                        .unwrap_or_default(),
                     namespace,
                     name,
                     count,
                 })
                 .collect();
             pods.sort_by(|a, b| (&a.namespace, &a.name).cmp(&(&b.namespace, &b.name)));
-            let allocated = i64::try_from(node.allocated_devices.len())
+            let allocated = i64::try_from(allocated_devices.len())
                 .map_err(|_| anyhow!("DRA allocated device count overflow on node"))?;
-            let source = if node.capacity > 0 || allocated > 0 {
+            let source = if capacity > 0 || allocated > 0 {
                 Some(RowSource::Dra)
             } else {
                 None
@@ -132,7 +152,7 @@ pub fn aggregate_dra(
             Ok(NodeRow {
                 node_name,
                 source,
-                capacity: node.capacity,
+                capacity,
                 allocated,
                 pods,
             })

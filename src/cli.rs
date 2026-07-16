@@ -48,6 +48,12 @@ pub struct Args {
     )]
     pub driver: String,
 
+    #[arg(
+        long,
+        help = "Show allocated device names instead of counts in the Pods column (DRA-sourced rows only; device-plugin rows always show counts)"
+    )]
+    pub devices: bool,
+
     #[arg(short, long, help = "Enable debug logging to stderr")]
     pub verbose: bool,
 }

@@ -13,11 +13,13 @@ fn main() {
                     namespace: "ns1".into(),
                     name: "pod-foo".into(),
                     count: 4,
+                    devices: vec![],
                 },
                 PodEntry {
                     namespace: "ns1".into(),
                     name: "pod-bar".into(),
                     count: 4,
+                    devices: vec![],
                 },
             ],
         },
@@ -37,6 +39,7 @@ fn main() {
                 namespace: "ns1".into(),
                 name: "pod-baz".into(),
                 count: 2,
+                devices: vec!["dev0".into(), "dev1".into()],
             }],
         },
         NodeRow {
@@ -49,29 +52,34 @@ fn main() {
                     namespace: "ns2".into(),
                     name: "pod-a".into(),
                     count: 4,
+                    devices: vec!["dev0".into(), "dev1".into(), "dev2".into(), "dev3".into()],
                 },
                 PodEntry {
                     namespace: "ns2".into(),
                     name: "pod-b".into(),
                     count: 1,
+                    devices: vec!["dev0".into()],
                 },
                 PodEntry {
                     namespace: "ns2".into(),
                     name: "pod-c".into(),
                     count: 1,
+                    devices: vec!["dev1".into()],
                 },
                 PodEntry {
                     namespace: "ns2".into(),
                     name: "pod-d".into(),
                     count: 1,
+                    devices: vec!["dev2".into()],
                 },
                 PodEntry {
                     namespace: "ns2".into(),
                     name: "pod-e".into(),
                     count: 1,
+                    devices: vec!["dev3".into()],
                 },
             ],
         },
     ];
-    println!("{}", render(&rows));
+    println!("{}", render(&rows, false));
 }

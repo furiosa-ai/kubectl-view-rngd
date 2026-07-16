@@ -153,6 +153,7 @@ fn mixed_cluster_merges_device_plugin_and_dra_rows_per_node() {
             namespace: "ns-dp".into(),
             name: "pod-dp".into(),
             count: 2,
+            devices: vec![],
         }]
     );
 
@@ -166,6 +167,7 @@ fn mixed_cluster_merges_device_plugin_and_dra_rows_per_node() {
             namespace: "ns-dra".into(),
             name: "pod-dra".into(),
             count: 2,
+            devices: vec!["dev0".into(), "dev1".into()],
         }]
     );
 }
@@ -208,6 +210,7 @@ fn conflict_prefers_dra_for_node_with_both_sources() {
             namespace: "ns-dra".into(),
             name: "pod-dra".into(),
             count: 1,
+            devices: vec!["dev0".into()],
         }]
     );
 }

@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
 
     let client = build_client(args.kubeconfig.as_deref(), args.context.as_deref()).await?;
     let rows = pipeline::collect_rows(client, &args).await?;
-    println!("{}", render(&rows));
+    println!("{}", render(&rows, args.devices));
     Ok(())
 }
 

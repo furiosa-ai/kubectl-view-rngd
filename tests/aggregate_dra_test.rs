@@ -136,6 +136,7 @@ fn basic_claim_maps_to_node_usage_and_pod() {
             namespace: "ns1".into(),
             name: "pod-a".into(),
             count: 2,
+            devices: vec!["dev0".into(), "dev1".into()],
         }]
     );
 }
@@ -277,11 +278,13 @@ fn shared_device_counts_once_in_allocated_and_once_per_pod() {
                 namespace: "ns1".into(),
                 name: "pod-a".into(),
                 count: 1,
+                devices: vec!["dev0".into()],
             },
             PodEntry {
                 namespace: "ns1".into(),
                 name: "pod-b".into(),
                 count: 1,
+                devices: vec!["dev0".into()],
             },
         ]
     );
@@ -412,4 +415,60 @@ fn claim_referencing_unknown_pool_is_skipped() {
     let node = row(&rows, "node1");
     assert_eq!(node.allocated, 0);
     assert!(node.pods.is_empty());
+}
+
+#[test]
+fn claim_shared_by_multiple_pods_counts_devices_once() {
+    let nodes = vec![make_node("node1")];
+    let slices = vec![make_slice(
+        "slice-1",
+        "npu.furiosa.ai",
+        "pool-a",
+        1,
+        1,
+        Some("node1"),
+        None,
+        &["dev0", "dev1", "dev2", "dev3"],
+    )];
+    let claims = vec![make_claim(
+        "ns1",
+        "shared-claim",
+        &[
+            result("npu.furiosa.ai", "pool-a", "dev0"),
+            result("npu.furiosa.ai", "pool-a", "dev1"),
+        ],
+        Some(vec![
+            pod_consumer("pod-a", "uid-a"),
+            pod_consumer("pod-b", "uid-b"),
+            pod_consumer("pod-c", "uid-c"),
+        ]),
+    )];
+
+    let rows = aggregate_dra(&nodes, &slices, &claims, "npu.furiosa.ai", false).unwrap();
+    let node = row(&rows, "node1");
+    assert_eq!(node.capacity, 4);
+    assert_eq!(node.allocated, 2);
+    assert_eq!(
+        node.pods,
+        vec![
+            PodEntry {
+                namespace: "ns1".into(),
+                name: "pod-a".into(),
+                count: 2,
+                devices: vec!["dev0".into(), "dev1".into()],
+            },
+            PodEntry {
+                namespace: "ns1".into(),
+                name: "pod-b".into(),
+                count: 2,
+                devices: vec!["dev0".into(), "dev1".into()],
+            },
+            PodEntry {
+                namespace: "ns1".into(),
+                name: "pod-c".into(),
+                count: 2,
+                devices: vec!["dev0".into(), "dev1".into()],
+            },
+        ]
+    );
 }

@@ -2,7 +2,7 @@ use comfy_table::{ContentArrangement, Table, TableComponent, presets::UTF8_FULL}
 
 use crate::aggregate::NodeRow;
 
-pub fn render(rows: &[NodeRow]) -> String {
+pub fn render(rows: &[NodeRow], show_devices: bool) -> String {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
@@ -28,7 +28,13 @@ pub fn render(rows: &[NodeRow]) -> String {
         } else {
             row.pods
                 .iter()
-                .map(|p| format!("{}/{} ({})", p.namespace, p.name, p.count))
+                .map(|p| {
+                    if show_devices && !p.devices.is_empty() {
+                        format!("{}/{} ({})", p.namespace, p.name, p.devices.join(","))
+                    } else {
+                        format!("{}/{} ({})", p.namespace, p.name, p.count)
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join("\n")
         };
