@@ -1,5 +1,5 @@
 use k8s_openapi::api::core::v1::{Node, Pod};
-use kubectl_view_rngd::aggregate::{NodeRow, PodEntry, aggregate};
+use kubectl_view_rngd::aggregate::{NodeRow, PodEntry, RowSource, aggregate};
 use kubectl_view_rngd::render::render;
 use serde_json::{Value, json};
 
@@ -24,13 +24,16 @@ fn make_pod(
     let containers: Vec<Value> = container_rngd_limits
         .iter()
         .enumerate()
-        .map(|(i, lim)| match lim {
-            Some(v) => json!({
+        .map(|(i, lim)| {
+            if let Some(v) = lim {
+                json!({
                 "name": format!("c{i}"),
                 "image": "img",
                 "resources": { "limits": { "furiosa.ai/rngd": v } }
-            }),
-            None => json!({ "name": format!("c{i}"), "image": "img" }),
+                })
+            } else {
+                json!({ "name": format!("c{i}"), "image": "img" })
+            }
         })
         .collect();
     let mut spec = json!({ "containers": containers });
@@ -73,6 +76,7 @@ fn happy_path_sorts_nodes_and_sums_pods() {
     assert_eq!(rows[1].node_name, "node2");
 
     let n1 = row(&rows, "node1");
+    assert_eq!(n1.source, Some(RowSource::DevicePlugin));
     assert_eq!(n1.capacity, 8);
     assert_eq!(n1.allocated, 4);
     assert_eq!(
@@ -81,22 +85,26 @@ fn happy_path_sorts_nodes_and_sums_pods() {
             PodEntry {
                 namespace: "ns1".into(),
                 name: "pod-foo".into(),
-                count: 1
+                count: 1,
+                devices: vec![]
             },
             PodEntry {
                 namespace: "ns2".into(),
                 name: "pod-bar".into(),
-                count: 2
+                count: 2,
+                devices: vec![]
             },
             PodEntry {
                 namespace: "ns2".into(),
                 name: "pod-foo".into(),
-                count: 1
+                count: 1,
+                devices: vec![]
             },
         ]
     );
 
     let n2 = row(&rows, "node2");
+    assert_eq!(n2.source, Some(RowSource::DevicePlugin));
     assert_eq!(n2.capacity, 8);
     assert_eq!(n2.allocated, 8);
     assert_eq!(
@@ -104,7 +112,8 @@ fn happy_path_sorts_nodes_and_sums_pods() {
         vec![PodEntry {
             namespace: "ns1".into(),
             name: "pod-zzz".into(),
-            count: 8
+            count: 8,
+            devices: vec![]
         }]
     );
 }
@@ -161,6 +170,7 @@ fn include_empty_shows_nodes_without_rngd() {
     let rows = aggregate(&nodes, &[], true).unwrap();
     assert_eq!(rows.len(), 2);
     let cpu = row(&rows, "cpu-only");
+    assert_eq!(cpu.source, None);
     assert_eq!(cpu.capacity, 0);
     assert_eq!(cpu.allocated, 0);
     assert!(cpu.pods.is_empty());
@@ -170,7 +180,7 @@ fn include_empty_shows_nodes_without_rngd() {
 fn node_with_rngd_but_no_pods_renders_dash() {
     let nodes = vec![make_node("idle", Some("8"))];
     let rows = aggregate(&nodes, &[], false).unwrap();
-    let out = render(&rows);
+    let out = render(&rows, false);
     assert!(out.contains("idle"), "output missing node name:\n{out}");
     assert!(out.contains("0 / 8"), "output missing ratio:\n{out}");
     assert!(
@@ -183,7 +193,7 @@ fn node_with_rngd_but_no_pods_renders_dash() {
 fn empty_cluster_renders_header_only() {
     let rows = aggregate(&[], &[], false).unwrap();
     assert!(rows.is_empty());
-    let out = render(&rows);
+    let out = render(&rows, false);
     assert!(out.contains("Node") && out.contains("Pods"));
 }
 
@@ -208,14 +218,16 @@ fn render_snapshot_matches_expected_layout() {
         make_pod("ns1", "pod-zzz", Some("node2"), "Running", &[Some("8")]),
     ];
     let rows = aggregate(&nodes, &pods, false).unwrap();
-    let out = render(&rows);
+    let out = render(&rows, false);
 
     // Table must be bordered Unicode and contain every row we expect.
     for needle in [
         "│ Node",
+        "│ Source",
         "│ Usage",
         "│ Pods",
         "node1",
+        "device-plugin",
         "4 / 8",
         "ns1/pod-foo (1)",
         "ns2/pod-bar (2)",
@@ -236,4 +248,47 @@ fn render_snapshot_matches_expected_layout() {
         node1_line_count, 1,
         "node name should appear exactly once per node group:\n{out}"
     );
+}
+
+#[test]
+fn render_with_show_devices_uses_names_for_dra_rows_only() {
+    let rows = vec![
+        NodeRow {
+            node_name: "node-dp".into(),
+            source: Some(RowSource::DevicePlugin),
+            capacity: 4,
+            allocated: 2,
+            pods: vec![PodEntry {
+                namespace: "ns1".into(),
+                name: "pod-dp".into(),
+                count: 2,
+                devices: vec![],
+            }],
+        },
+        NodeRow {
+            node_name: "node-dra".into(),
+            source: Some(RowSource::Dra),
+            capacity: 4,
+            allocated: 2,
+            pods: vec![PodEntry {
+                namespace: "ns2".into(),
+                name: "pod-dra".into(),
+                count: 2,
+                devices: vec!["npu10".into(), "npu2".into(), "npu1".into()],
+            }],
+        },
+    ];
+    let out = render(&rows, true);
+
+    for needle in [
+        "node-dp",
+        "ns1/pod-dp (2)",
+        "node-dra",
+        "ns2/pod-dra [1, 2, 10]",
+    ] {
+        assert!(
+            out.contains(needle),
+            "missing {needle:?} in rendered table:\n{out}"
+        );
+    }
 }

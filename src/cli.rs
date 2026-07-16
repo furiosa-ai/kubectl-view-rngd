@@ -1,6 +1,16 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+
+use crate::DEFAULT_DRA_DRIVER;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+pub enum Source {
+    #[default]
+    Auto,
+    DevicePlugin,
+    Dra,
+}
 
 #[derive(Debug, Parser)]
 #[command(
@@ -21,6 +31,28 @@ pub struct Args {
         help = "Also list nodes without furiosa.ai/rngd capacity (shown as 0 / 0 with `-` Pods)"
     )]
     pub include_empty: bool,
+
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = Source::Auto,
+        help = "Data source to use: auto-detect each node from DRA or device-plugin data, or force device-plugin / DRA mode"
+    )]
+    pub source: Source,
+
+    #[arg(
+        long,
+        default_value = DEFAULT_DRA_DRIVER,
+        value_name = "NAME",
+        help = "DRA driver whose devices are shown"
+    )]
+    pub driver: String,
+
+    #[arg(
+        long,
+        help = "Show allocated device names instead of counts in the Pods column (DRA-sourced rows only; device-plugin rows always show counts)"
+    )]
+    pub devices: bool,
 
     #[arg(short, long, help = "Enable debug logging to stderr")]
     pub verbose: bool,

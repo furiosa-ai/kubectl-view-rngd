@@ -1,8 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use kubectl_view_rngd::{
-    aggregate::aggregate, cli::Args, collect::fetch_all, kube_client::build_client, render::render,
-};
+use kubectl_view_rngd::{cli::Args, kube_client::build_client, pipeline, render::render};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> Result<()> {
@@ -13,9 +11,8 @@ async fn main() -> Result<()> {
     init_tracing(args.verbose);
 
     let client = build_client(args.kubeconfig.as_deref(), args.context.as_deref()).await?;
-    let (nodes, pods) = fetch_all(client).await?;
-    let rows = aggregate(&nodes, &pods, args.include_empty)?;
-    println!("{}", render(&rows));
+    let rows = pipeline::collect_rows(client, &args).await?;
+    println!("{}", render(&rows, args.devices));
     Ok(())
 }
 
