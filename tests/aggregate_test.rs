@@ -24,13 +24,16 @@ fn make_pod(
     let containers: Vec<Value> = container_rngd_limits
         .iter()
         .enumerate()
-        .map(|(i, lim)| match lim {
-            Some(v) => json!({
+        .map(|(i, lim)| {
+            if let Some(v) = lim {
+                json!({
                 "name": format!("c{i}"),
                 "image": "img",
                 "resources": { "limits": { "furiosa.ai/rngd": v } }
-            }),
-            None => json!({ "name": format!("c{i}"), "image": "img" }),
+                })
+            } else {
+                json!({ "name": format!("c{i}"), "image": "img" })
+            }
         })
         .collect();
     let mut spec = json!({ "containers": containers });
@@ -271,7 +274,7 @@ fn render_with_show_devices_uses_names_for_dra_rows_only() {
                 namespace: "ns2".into(),
                 name: "pod-dra".into(),
                 count: 2,
-                devices: vec!["dev0".into(), "dev1".into()],
+                devices: vec!["npu10".into(), "npu2".into(), "npu1".into()],
             }],
         },
     ];
@@ -281,7 +284,7 @@ fn render_with_show_devices_uses_names_for_dra_rows_only() {
         "node-dp",
         "ns1/pod-dp (2)",
         "node-dra",
-        "ns2/pod-dra (dev0,dev1)",
+        "ns2/pod-dra [1, 2, 10]",
     ] {
         assert!(
             out.contains(needle),
